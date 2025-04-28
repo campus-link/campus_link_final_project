@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Manage Chat Groups - CampusLink</title>
+  <link href="css/bootstrap.min.css" rel="stylesheet">
+  <link href="css/style.css" rel="stylesheet">
+</head>
+<body>
+  <div class="container mt-5">
+    <h2>Manage Chat Groups</h2>
+
+    <div class="mb-4">
+      <form id="createGroupForm">
+        <label for="groupName" class="form-label">New Group Name</label>
+        <input type="text" id="groupName" class="form-control" required>
+        <button type="submit" class="btn btn-primary mt-2">Create Group</button>
+      </form>
+    </div>
+
+    <div id="groupList">
+      <!-- Existing groups will be listed here -->
+    </div>
+
+    <hr class="my-4">
+<h3>👥 Assign Users to Group</h3>
+
+<form id="assignUserForm" class="row g-3 align-items-end mb-3">
+    <div class="col-md-4">
+        <label for="selectGroup" class="form-label">Group</label>
+        <select id="selectGroup" class="form-select" required></select>
+    </div>
+    <div class="col-md-4">
+        <label for="selectUser" class="form-label">User</label>
+        <select id="selectUser" class="form-select" required></select>
+    </div>
+    <div class="col-md-4">
+        <button type="submit" class="btn btn-primary">Assign</button>
+    </div>
+</form>
+
+<div id="groupMembersContainer">
+    <h5 class="mb-3">Group Members:</h5>
+    <ul id="groupMembersList" class="list-group"></ul>
+</div>
+
+  </div>
+
+  
+
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="js/group-management.js"></script>
+</body>
+</html>
