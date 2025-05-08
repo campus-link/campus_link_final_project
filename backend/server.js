@@ -62,7 +62,12 @@ function parseDatabaseUrl(databaseUrl) {
     };
 }
 
+console.log("Raw DATABASE_URL:", process.env.DATABASE_URL);
+console.log("Raw MYSQL_URL:", process.env.MYSQL_URL);
+
 const dbConfig = parseDatabaseUrl(process.env.DATABASE_URL || process.env.MYSQL_URL);
+
+console.log("Parsed DB Config:", dbConfig);
 
 const db = mysql.createConnection({
     host: dbConfig.host,
