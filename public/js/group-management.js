@@ -37,11 +37,21 @@ document.addEventListener("DOMContentLoaded", () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ groupId, userId }),
       })
-        .then(res => res.json())
+        .then(res => {
+          if (!res.ok) {
+            return res.json().then(errData => {
+              throw new Error(errData.message || 'Failed to assign user to group');
+            });
+          }
+          return res.json();
+        })
         .then(data => {
           alert(data.message || "User successfully assigned to the group!");
           document.getElementById("selectUser").value = "";
           loadGroupMembers(groupId);
+        })
+        .catch(err => {
+          alert(err.message);
         });
     });
   

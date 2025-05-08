@@ -18,12 +18,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    // Fetch user info to display greeting
+    let loggedInUserRole = null;
+    // Fetch user info to display greeting and role
     try {
-        const response = await fetch(`http://localhost:5000/api/users/${userId}`);
+        const response = await fetch(`http://localhost:5000/users/${userId}`);
         if (!response.ok) throw new Error('Failed to fetch user info');
         const user = await response.json();
+        console.log("Fetched user info:", user);
         greetingContainer.innerText = `Hey ${user.name}`;
+        loggedInUserRole = user.role || null;
+        console.log("Logged in user role:", loggedInUserRole);
     } catch (error) {
         greetingContainer.innerText = 'Hey User';
         console.error('Error fetching user info:', error);
@@ -84,6 +88,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const response = await fetch(`http://localhost:5000/group/${groupId}/messages`);
             if (!response.ok) throw new Error('Failed to fetch messages');
             const messages = await response.json();
+            console.log("Messages fetched for group", groupId, ":", messages);
 
             // Get file messages from localStorage
             const fileMessagesKey = `fileMessages_${groupId}`;
@@ -116,19 +121,31 @@ document.addEventListener('DOMContentLoaded', async () => {
                 div.classList.add('other');
             }
 
-            if (msg.fileName && msg.fileData) {
-                // This is a file message
-                const link = document.createElement('a');
-                link.textContent = msg.fileName;
-                link.href = msg.fileData;
-                link.download = msg.fileName;
-                link.classList.add('file-link');
-                div.appendChild(document.createTextNode(`${msg.name || 'You'} sent a file: `));
-                div.appendChild(link);
-            } else {
-                // Text message
-                div.textContent = `${msg.name || 'You'}: ${msg.message}`;
+            try {
+                const fileData = JSON.parse(msg.message);
+        if (fileData.fileName && fileData.fileUrl) {
+            // This is a file message
+            const link = document.createElement('a');
+            link.textContent = fileData.fileName;
+            link.href = fileData.fileUrl;
+            link.download = fileData.fileName;
+            link.classList.add('file-link');
+            console.log("Message user_name:", msg.user_name, "user_id:", msg.user_id);
+            const senderLabel = (loggedInUserRole === 'teacher') ? (msg.user_name || `User ID ${msg.user_id || 'Unknown'}`) : `User ID ${msg.user_id || 'Unknown'}`;
+            div.appendChild(document.createTextNode(`${senderLabel} sent a file: `));
+            div.appendChild(link);
+        } else {
+            console.log("Message user_name:", msg.user_name, "user_id:", msg.user_id);
+            const senderLabel = (loggedInUserRole === 'teacher') ? (msg.user_name || `User ID ${msg.user_id || 'Unknown'}`) : `User ID ${msg.user_id || 'Unknown'}`;
+            div.textContent = `${senderLabel}: ${msg.message}`;
+        }
+            } catch (e) {
+        // Not a JSON file message, treat as text
+        console.log("Message user_name:", msg.user_name, "user_id:", msg.user_id);
+        const senderLabel = (loggedInUserRole === 'teacher') ? (msg.user_name || `User ID ${msg.user_id || 'Unknown'}`) : `User ID ${msg.user_id || 'Unknown'}`;
+        div.textContent = `${senderLabel}: ${msg.message}`;
             }
+
             messagesContainer.appendChild(div);
         });
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -149,32 +166,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         if (file) {
-            // Handle file upload locally
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const fileData = e.target.result;
-                const fileMessagesKey = `fileMessages_${selectedGroupId}`;
-                const fileMessagesJSON = localStorage.getItem(fileMessagesKey);
-                const fileMessages = fileMessagesJSON ? JSON.parse(fileMessagesJSON) : [];
+            // Upload file to backend
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('userId', userId);
 
-                const newFileMessage = {
-                    userId: userId,
-                    name: 'You',
-                    fileName: file.name,
-                    fileData: fileData,
-                    timestamp: new Date().toISOString()
-                };
+            try {
+                const response = await fetch(`http://localhost:5000/group/${selectedGroupId}/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
 
-                fileMessages.push(newFileMessage);
-                localStorage.setItem(fileMessagesKey, JSON.stringify(fileMessages));
+                if (!response.ok) {
+                    throw new Error('Failed to upload file');
+                }
 
                 // Clear inputs
                 fileInput.value = '';
                 messageInput.value = '';
 
                 loadMessages(selectedGroupId);
-            };
-            reader.readAsDataURL(file);
+            } catch (error) {
+                alert('Error uploading file. Please try again.');
+                console.error('Error uploading file:', error);
+            }
         } else {
             // Send text message to backend
             try {

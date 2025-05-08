@@ -35,7 +35,7 @@ router.get('/group/:group_id/messages', (req, res) => {
             FROM messages m
             JOIN users u ON m.user_id = u.id
             WHERE m.group_id = ?
-            ORDER BY m.created_at ASC
+            ORDER BY m.timestamp ASC
         `;
         params = [groupId];
     } else if (userRole === 'student') {
@@ -49,7 +49,7 @@ router.get('/group/:group_id/messages', (req, res) => {
                 m.is_private = 0
                 OR (m.is_private = 1 AND m.recipient_user_id = ? AND u.role = 'teacher')
             )
-            ORDER BY m.created_at ASC
+            ORDER BY m.timestamp ASC
         `;
         params = [groupId, userId];
     } else {
@@ -59,7 +59,7 @@ router.get('/group/:group_id/messages', (req, res) => {
             FROM messages m
             JOIN users u ON m.user_id = u.id
             WHERE m.group_id = ?
-            ORDER BY m.created_at ASC
+            ORDER BY m.timestamp ASC
         `;
         params = [groupId];
     }
@@ -227,6 +227,41 @@ router.get('/users/:id', (req, res) => {
             return res.status(404).json({ error: 'User not found' });
         }
         res.json(results[0]);
+    });
+});
+
+
+// Edit a group message
+router.put('/group/:group_id/message/:message_id', (req, res) => {
+    const { group_id, message_id } = req.params;
+    const { message } = req.body;
+
+    if (!message) {
+        return res.status(400).json({ error: 'Message content is required' });
+    }
+
+    // Update the message text
+    const sql = `UPDATE messages SET message = ? WHERE id = ? AND group_id = ?`;
+    db.query(sql, [message, message_id, group_id], (err, result) => {
+        if (err) return res.status(500).json({ error: 'DB error', details: err.message });
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Message not found or does not belong to the group' });
+        }
+        res.json({ message: 'Message updated successfully' });
+    });
+});
+
+// Delete a group message
+router.delete('/group/:group_id/message/:message_id', (req, res) => {
+    const { group_id, message_id } = req.params;
+
+    const sql = `DELETE FROM messages WHERE id = ? AND group_id = ?`;
+    db.query(sql, [message_id, group_id], (err, result) => {
+        if (err) return res.status(500).json({ error: 'DB error', details: err.message });
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Message not found or does not belong to the group' });
+        }
+        res.json({ message: 'Message deleted successfully' });
     });
 });
 

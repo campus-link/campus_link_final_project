@@ -63,14 +63,14 @@ function logout() {
 // ✅ Fetch Users
 async function fetchUsers(role = "all") {
     try {
-        const res = await fetch("http://localhost:5000/users");
+        const url = role === "all" ? "http://localhost:5000/users" : `http://localhost:5000/users?role=${role}`;
+        const res = await fetch(url);
         const users = await res.json();
 
-        const filteredUsers = role === "all" ? users : users.filter(user => user.role === role);
         const tbody = document.getElementById("userTableBody");
         tbody.innerHTML = "";
 
-        filteredUsers.forEach(user => {
+        users.forEach(user => {
             const row = document.createElement("tr");
             row.innerHTML = `
                 <td>${user.id}</td>
@@ -172,7 +172,11 @@ async function deleteUser(id) {
 }
 
 // ✅ Filter by Role
- // Student Academic Details
+function filterUsers(role) {
+    fetchUsers(role);
+}
+
+// Student Academic Details
 
 let academicRecords = [];
 

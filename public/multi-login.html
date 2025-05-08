@@ -235,6 +235,8 @@ if (data.success) {
 
     if (data.role && data.role.toLowerCase() === 'hr') {
         window.location.href = 'hr-groups.html';
+    } else if (data.role && data.role.toLowerCase() === 'teacher') {
+        window.location.href = 'teacher-dashboard.html';
     } else {
         window.location.href = 'user-groups.html';
     }

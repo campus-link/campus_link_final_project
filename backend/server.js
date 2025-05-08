@@ -9,6 +9,8 @@ const jwt = require('jsonwebtoken');
 const http = require('http');
 const { error } = require('console');
 const socketIo = require('socket.io');
+const multer = require('multer');
+// const path = require('path');
 const router = express.Router();
 
 // Authentication middleware
@@ -55,6 +57,18 @@ db.connect(err => {
     console.log('✅ MySQL Connected...');
 });
 
+// Multer setup for file uploads
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, path.join(__dirname, '../public/uploads'));
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, uniqueSuffix + '-' + file.originalname);
+    }
+});
+const upload = multer({ storage: storage });
+
 
 
 // Pass db to chatRoutes
@@ -69,6 +83,35 @@ app.use('/', pendingStudentRoutes);
 // Optional: Example base route
 app.get('/', (req, res) => {
     res.send("CampusLink backend is running");
+});
+
+// New route for file upload in group chat
+app.post('/group/:groupId/upload', upload.single('file'), (req, res) => {
+    const { groupId } = req.params;
+    const userId = req.body.userId;
+    if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+    }
+    if (!userId) {
+        return res.status(400).json({ message: 'User ID is required' });
+    }
+
+    const fileUrl = `/uploads/${req.file.filename}`;
+    const fileName = req.file.originalname;
+
+    // Insert file message into group messages table
+    const tableName = `group_${groupId}_messages`;
+    const message = JSON.stringify({ fileName, fileUrl });
+
+    db.query(`
+        INSERT INTO ${tableName} (user_id, message) VALUES (?, ?)
+    `, [userId, message], (err) => {
+        if (err) {
+            console.error('Error inserting file message:', err);
+            return res.status(500).json({ message: 'Error saving file message' });
+        }
+        res.json({ message: 'File uploaded successfully', fileUrl, fileName });
+    });
 });
 
 
@@ -234,21 +277,68 @@ app.post('/group/:groupId/message', (req, res) => {
 });
 
 app.get('/group/:groupId/messages', (req, res) => {
-    const { groupId } = req.params;
-    const tableName = `group_${groupId}_messages`;
+  const { groupId } = req.params;
+  const tableName = `group_${groupId}_messages`;
 
-    db.query(`
-        SELECT gm.message_id, gm.message, gm.timestamp, u.id as user_id, u.name 
-        FROM ${tableName} gm
-        JOIN users u ON gm.user_id = u.id
-        ORDER BY gm.timestamp ASC
-    `, (err, results) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ message: "Error fetching messages" });
-        }
-        res.json(results);
-    });
+  db.query(`
+    SELECT gm.message_id, gm.message, gm.timestamp, u.id as user_id, u.name 
+    FROM ${tableName} gm
+    JOIN users u ON gm.user_id = u.id
+    ORDER BY gm.timestamp ASC
+  `, (err, results) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).json({ message: "Error fetching messages" });
+    }
+    res.json(results);
+  });
+});
+
+// Route to update a message in a group
+app.put('/group/:groupId/message/:messageId', (req, res) => {
+  const { groupId, messageId } = req.params;
+  const { message } = req.body;
+  const tableName = `group_${groupId}_messages`;
+
+  if (!message || message.trim() === '') {
+    return res.status(400).json({ error: 'Message content cannot be empty' });
+  }
+
+  db.query(
+    `UPDATE ${tableName} SET message = ? WHERE message_id = ?`,
+    [message, messageId],
+    (err, result) => {
+      if (err) {
+        console.error('Error updating message:', err);
+        return res.status(500).json({ error: 'Failed to update message' });
+      }
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: 'Message not found' });
+      }
+      res.json({ message: 'Message updated successfully' });
+    }
+  );
+});
+
+// Route to delete a message in a group
+app.delete('/group/:groupId/message/:messageId', (req, res) => {
+  const { groupId, messageId } = req.params;
+  const tableName = `group_${groupId}_messages`;
+
+  db.query(
+    `DELETE FROM ${tableName} WHERE message_id = ?`,
+    [messageId],
+    (err, result) => {
+      if (err) {
+        console.error('Error deleting message:', err);
+        return res.status(500).json({ error: 'Failed to delete message' });
+      }
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: 'Message not found' });
+      }
+      res.json({ message: 'Message deleted successfully' });
+    }
+  );
 });
 
 
@@ -284,32 +374,67 @@ app.post('/admin/assign-user-to-group', async (req, res) => {
         console.log(`Assigning user ${userId} to group ${groupId}`);
 
         // Check if the user is already assigned to the group
-        const result = await db.execute(
+        const result = await db.promise().execute(
             'SELECT * FROM group_members WHERE group_id = ? AND user_id = ?',
             [groupId, userId]
         );
 
-        // Access _rows from the result
-        const rows = result._rows; // Fix: Access rows correctly
+        // Access rows from the result
+        const rows = result[0];
 
         // Log the rows to see the result structure
         console.log('Rows from query:', rows);
 
         // If the user is already in the group
         if (rows && rows.length > 0) {
-            return res.json({ message: "User is already in this group" });
+            return res.status(200).json({ message: "User is already in this group" });
         }
 
-        // If not, insert the user into the group
-        await db.execute(
+        // Insert the user into the group
+        await db.promise().execute(
             'INSERT INTO group_members (group_id, user_id) VALUES (?, ?)',
             [groupId, userId]
         );
 
-        res.json({ message: "User successfully assigned to group" });
+        // Fetch user info for email
+        const [userRows] = await db.promise().execute('SELECT name, email FROM users WHERE id = ?', [userId]);
+        if (!userRows || userRows.length === 0) {
+            console.warn(`User with ID ${userId} not found for email notification.`);
+        } else {
+            const user = userRows[0];
+
+            // Fetch group name
+            const [groupRows] = await db.promise().execute('SELECT name FROM groups1 WHERE id = ?', [groupId]);
+            const groupName = (groupRows && groupRows.length > 0) ? groupRows[0].name : 'your group';
+
+            // Prepare email
+            const mailOptions = {
+                from: '"CampusLink Admin" <campuslinkp@gmail.com>',
+                to: user.email,
+                subject: `You have been added to the group "${groupName}"`,
+                html: `
+                    <p>Hi ${user.name},</p>
+                    <p>You have been added to the group <strong>${groupName}</strong> on CampusLink.</p>
+                    <p>Feel free to start collaborating with your group members!</p>
+                    <br/>
+                    <p>Best regards,<br/>CampusLink Team</p>
+                `
+            };
+
+            // Send email
+            transporter.sendMail(mailOptions, (error, info) => {
+                if (error) {
+                    console.error('Error sending group assignment email:', error);
+                } else {
+                    console.log('Group assignment email sent:', info.response);
+                }
+            });
+        }
+
+        res.status(200).json({ message: "User successfully assigned to group and notified by email" });
     } catch (err) {
         console.error('Error assigning user to group:', err);
-        res.status(500).json({ message: "Failed to assign user to group", error: err.message });
+        res.status(500).json({ message: err.message || "Failed to assign user to group" });
     }
 });
 app.post('/admin/remove-user-from-group', async (req, res) => {
@@ -589,7 +714,7 @@ app.get('/users', (req, res) => {
     const { role, stream, percentageMin, percentageMax } = req.query;
 
     let query = `
-        SELECT u.id, u.name, u.email, u.role, sat.stream, sat.percentage
+        SELECT u.id, u.name, u.email, u.role, u.password, sat.stream, sat.percentage
         FROM users u
         LEFT JOIN student_academic_table sat ON u.id = sat.student_id
         WHERE 1=1
