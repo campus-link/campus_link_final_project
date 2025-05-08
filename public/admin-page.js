@@ -32,7 +32,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // ✅ Admin Verification
 async function verifyAdmin(token) {
     try {
-        const res = await fetch("http://localhost:5000/admin/verify", {
+        const res = await fetch("https://campus-link-final-project.onrender.com/admin/verify", {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${token}`,
@@ -63,7 +63,7 @@ function logout() {
 // ✅ Fetch Users
 async function fetchUsers(role = "all") {
     try {
-        const url = role === "all" ? "http://localhost:5000/users" : `http://localhost:5000/users?role=${role}`;
+        const url = role === "all" ? "https://campus-link-final-project.onrender.com/users" : `https://campus-link-final-project.onrender.com/users?role=${role}`;
         const res = await fetch(url);
         const users = await res.json();
 
@@ -108,7 +108,7 @@ async function handleFormSubmit(e) {
     const payload = { name, email, role };
     if (password) payload.password = password;
 
-    const url = id ? `http://localhost:5000/users/${id}` : "http://localhost:5000/users";
+    const url = id ? `https://campus-link-final-project.onrender.com/users/${id}` : "https://campus-link-final-project.onrender.com/users";
     const method = id ? "PUT" : "POST";
 
     try {
@@ -158,7 +158,7 @@ async function deleteUser(id) {
     if (!confirm("Are you sure you want to delete this user?")) return;
 
     try {
-        const res = await fetch(`http://localhost:5000/users/${id}`, {
+        const res = await fetch(`https://campus-link-final-project.onrender.com/users/${id}`, {
             method: "DELETE"
         });
         const data = await res.json();
@@ -187,7 +187,7 @@ document.addEventListener("DOMContentLoaded", () => {
 async function fetchAcademicRecords() {
     try {
         const token = localStorage.getItem("adminToken");
-        const res = await fetch("http://localhost:5000/student-academic-table", {
+        const res = await fetch("https://campus-link-final-project.onrender.com/student-academic-table", {
             headers: {
                 "Authorization": `Bearer ${token}`
             }
@@ -257,7 +257,7 @@ document.getElementById("academicForm").addEventListener("submit", async (e) => 
     try {
         const token = localStorage.getItem("adminToken");
         const originalRollNumber = document.getElementById("academicRollNumber").value.trim();
-        const res = await fetch("http://localhost:5000/student-academic-table", {
+        const res = await fetch("https://campus-link-final-project.onrender.com/student-academic-table", {
             method: "POST",
             headers: { 
                 "Content-Type": "application/json",
@@ -282,7 +282,7 @@ async function deleteAcademicRecord(roll_number) {
 
     try {
         const token = localStorage.getItem("adminToken");
-        const res = await fetch(`http://localhost:5000/student-academic-table/${roll_number}`, {
+        const res = await fetch(`https://campus-link-final-project.onrender.com/student-academic-table/${roll_number}`, {
             method: "DELETE",
             headers: {
                 "Authorization": `Bearer ${token}`

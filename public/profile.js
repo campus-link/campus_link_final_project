@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Load existing user data
     try {
-        const response = await fetch(`http://localhost:5000/users/${userId}`);
+const response = await fetch(`https://campus-link-final-project.onrender.com/users/${userId}`);
         if (!response.ok) {
             throw new Error('Failed to fetch user profile');
         }

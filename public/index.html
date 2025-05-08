@@ -567,7 +567,7 @@
             };
 
             try {
-                const res = await fetch('http://localhost:5000/api/submit-student', {
+fetch('https://campus-link-final-project.onrender.com/api/submit-student', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(studentData)

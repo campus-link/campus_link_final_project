@@ -54,7 +54,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Fetch and display user groups for chat
     async function fetchChatGroups() {
         try {
-            const response = await fetch(`http://localhost:5000/api/user/${userId}/groups`, {
+const response = await fetch(`https://campus-link-final-project.onrender.com/api/user/${userId}/groups`, {
                 headers: {
                     'Authorization': `Bearer ${authToken}`
                 }
@@ -99,7 +99,7 @@ document.addEventListener("DOMContentLoaded", () => {
         messagesContainer.innerHTML = 'Loading messages...';
 
         try {
-            const response = await fetch(`http://localhost:5000/group/${groupId}/messages`, {
+const response = await fetch(`https://campus-link-final-project.onrender.com/group/${groupId}/messages`, {
                 headers: {
                     'Authorization': `Bearer ${authToken}`
                 }
@@ -200,7 +200,7 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
             // Send text message to backend
             try {
-                const response = await fetch(`http://localhost:5000/group/${selectedGroupId}/message`, {
+const response = await fetch(`https://campus-link-final-project.onrender.com/group/${selectedGroupId}/message`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -249,7 +249,7 @@ async function createGroup() {
     const token = localStorage.getItem("adminToken");
 
     try {
-        const res = await fetch("http://localhost:5000/admin/create-group", {
+const res = await fetch("https://campus-link-final-project.onrender.com/admin/create-group", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -273,7 +273,7 @@ async function fetchGroups() {
     // For now, just log groups. Can be extended to display groups if needed.
     const token = localStorage.getItem("adminToken");
     try {
-        const res = await fetch("http://localhost:5000/groups", {
+const res = await fetch("https://campus-link-final-project.onrender.com/groups", {
             headers: {
                 "Authorization": `Bearer ${token}`
             }
@@ -301,7 +301,7 @@ async function fetchUsers() {
     if (percentageMax) params.append("percentageMax", percentageMax);
 
     try {
-        const res = await fetch(`http://localhost:5000/users?${params.toString()}`, {
+const res = await fetch(`https://campus-link-final-project.onrender.com/users?${params.toString()}`, {
             headers: {
                 "Authorization": `Bearer ${token}`
             }
@@ -310,7 +310,7 @@ async function fetchUsers() {
         const users = await res.json();
 
         // Fetch academic details for each user to get stream and percentage
-        const academicRes = await fetch('http://localhost:5000/student-academic-table', {
+const academicRes = await fetch('https://campus-link-final-project.onrender.com/student-academic-table', {
             headers: {
                 "Authorization": `Bearer ${token}`
             }

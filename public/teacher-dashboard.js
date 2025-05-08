@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let loggedInUserRole = null;
     // Fetch user info to display greeting and role
     try {
-        const response = await fetch(`http://localhost:5000/users/${userId}`);
+const response = await fetch(`https://campus-link-final-project.onrender.com/users/${userId}`);
         if (!response.ok) throw new Error('Failed to fetch user info');
         const user = await response.json();
         console.log("Fetched user info:", user);
@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Fetch and display user groups
     try {
-        const response = await fetch(`http://localhost:5000/api/user/${userId}/groups`);
+const response = await fetch(`https://campus-link-final-project.onrender.com/api/user/${userId}/groups`);
         if (!response.ok) throw new Error('Failed to fetch groups');
         const groups = await response.json();
         groupsCountContainer.innerText = `You are a member of ${groups.length} group(s).`;
@@ -85,7 +85,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         messagesContainer.innerHTML = 'Loading messages...';
 
         try {
-            const response = await fetch(`http://localhost:5000/group/${groupId}/messages?user_id=${userId}&user_role=${loggedInUserRole}`);
+const response = await fetch(`https://campus-link-final-project.onrender.com/group/${groupId}/messages?user_id=${userId}&user_role=${loggedInUserRole}`);
             if (!response.ok) throw new Error('Failed to fetch messages');
             const messages = await response.json();
             console.log("Messages fetched for group", groupId, ":", messages);
@@ -173,7 +173,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             formData.append('userId', userId);
 
             try {
-                const response = await fetch(`http://localhost:5000/group/${selectedGroupId}/upload`, {
+const response = await fetch(`https://campus-link-final-project.onrender.com/group/${selectedGroupId}/upload`, {
                     method: 'POST',
                     body: formData
                 });
@@ -194,7 +194,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
             // Send text message to backend
             try {
-                const response = await fetch(`http://localhost:5000/group/${selectedGroupId}/message`, {
+const response = await fetch(`https://campus-link-final-project.onrender.com/group/${selectedGroupId}/message`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'

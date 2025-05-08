@@ -265,7 +265,7 @@
 
             async function fetchPendingStudents() {
                 try {
-                    const res = await fetch("http://localhost:5000/pending-students");
+                    const res = await fetch("https://campus-link-final-project.onrender.com/:5000/pending-students");
                     const students = await res.json();
 
                     const tbody = document.getElementById("pendingStudentTableBody");
@@ -297,7 +297,7 @@
     if (!confirmed) return;
 
     try {
-        const res = await fetch(`http://localhost:5000/accept-student/${id}`, {
+        const res = await fetch(`https://campus-link-final-project.onrender.com/accept-student/${id}`, {
             method: "POST"
         });
         const data = await res.json();
@@ -314,7 +314,7 @@ async function rejectStudent(id) {
     if (!confirmed) return;
 
     try {
-        const res = await fetch(`http://localhost:5000/reject-student/${id}`, {
+        const res = await fetch(`https://campus-link-final-project.onrender.com/reject-student/${id}`, {
             method: "DELETE"
         });
         const data = await res.json();

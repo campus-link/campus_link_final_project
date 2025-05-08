@@ -1,4 +1,4 @@
-const baseURL = "http://localhost:5000"; // Replace with your actual backend URL
+const baseURL = "https://campus-link-final-project.onrender.com"; // Replace with your actual backend URL
 
 // Fetch groups for the logged-in user
 export async function getUserGroups(userId) {
