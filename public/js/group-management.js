@@ -101,19 +101,20 @@ document.addEventListener("DOMContentLoaded", () => {
   function deleteGroup(groupId, groupName) {
     if (!confirm(`Are you sure you want to delete group "${groupName}"?`)) return;
   
-    fetch(`/admin/delete-group/${groupId}`, {
+    fetch(`/api/group/${groupId}`, {
       method: 'DELETE',
     })
     .then(res => res.json())
     .then(data => {
       alert(data.message);
-      fetchGroups();
+      fetchGroups(); // Refresh group list
     })
     .catch(err => {
       console.error(err);
       alert("Error deleting group");
     });
   }
+  
   
   // View group member details
   function viewGroupDetails(groupId) {

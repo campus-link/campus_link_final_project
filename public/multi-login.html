@@ -220,24 +220,34 @@ document.getElementById("loginForm").addEventListener("submit", async function (
         });
 
         const data = await res.json();
+        console.log('Login response data:', data);
 
         if (!res.ok) {
             throw new Error(data.message || "Login failed");
         }
 
-        if (data.success) {
-            // Store token in localStorage
-            localStorage.setItem('authToken', data.token);
-            localStorage.setItem('userRole', data.role);
-            
-            // Redirect to role-specific dashboard
-            window.location.href = data.redirect;
-        }
+        
+if (data.success) {
+    // Store token and user info in localStorage
+    localStorage.setItem('authToken', data.token);
+    localStorage.setItem('userRole', data.role);
+    localStorage.setItem('userId', data.userId); // This is required for chat module
+
+    if (data.role && data.role.toLowerCase() === 'hr') {
+        window.location.href = 'hr-groups.html';
+    } else {
+        window.location.href = 'user-groups.html';
+    }
+}
+
+
     } catch (error) {
         console.error("Login error:", error);
         alert(error.message || "Login failed. Please try again.");
     }
 });
+    // This is already in your code and works fine
+localStorage.setItem('authToken', data.token);
 
    </script>
 

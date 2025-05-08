@@ -1,9 +1,6 @@
+// db.js
 require('dotenv').config();
 const mysql = require('mysql2');
-
-console.log("DB_HOST:", process.env.DB_HOST);
-console.log("DB_USER:", process.env.DB_USER);
-console.log("DB_NAME:", process.env.DB_NAME);
 
 const db = mysql.createConnection({
   host: process.env.DB_HOST,
@@ -20,4 +17,18 @@ db.connect((err) => {
   console.log("✅ MySQL connected successfully!");
 });
 
-module.exports = db;
+// Optional helper
+async function getUserGroupsFromDB(userId) {
+  return new Promise((resolve, reject) => {
+    const query = 'SELECT * FROM groups WHERE user_id = ?';
+    db.query(query, [userId], (err, results) => {
+      if (err) reject(err);
+      else resolve(results);
+    });
+  });
+}
+
+module.exports = {
+  db,
+  getUserGroupsFromDB
+};

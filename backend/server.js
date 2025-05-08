@@ -7,18 +7,35 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const http = require('http');
+const { error } = require('console');
 const socketIo = require('socket.io');
 const router = express.Router();
-// const path = require('path');
+
+// Authentication middleware
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (!token) return res.status(401).json({ message: 'Unauthorized: No token provided' });
+
+    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+        if (err) return res.status(403).json({ message: 'Forbidden: Invalid token' });
+        req.user = user;
+        next();
+    });
+};
+
+// const quickAccessRoutes = require('./routes/quickAccessRoutes'); // Include the new routes file
 
 const app = express();
+const server = http.createServer(app);
+const io = socketIo(server);
+
+// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "../public")));
 
-const server = http.createServer(app);
-const io = socketIo(server);
-
+// MySQL Connection
 console.log("DB_HOST:", process.env.DB_HOST);
 console.log("DB_USER:", process.env.DB_USER);
 console.log("DB_NAME:", process.env.DB_NAME);
@@ -40,6 +57,30 @@ db.connect(err => {
 
 
 
+// Pass db to chatRoutes
+const chatRoutes = require('./routes/chatRoutes');
+chatRoutes.db = db; // inject db manually if needed
+app.use('/api', chatRoutes);
+
+// Mount pendingstudent routes
+const pendingStudentRoutes = require('./routes/pendingstudent');
+app.use('/', pendingStudentRoutes);
+
+// Optional: Example base route
+app.get('/', (req, res) => {
+    res.send("CampusLink backend is running");
+});
+
+
+const nodemailer = require("nodemailer");
+// You can use your Gmail or another SMTP
+const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+        user: "campuslinkp@gmail.com",        // 👉 your email
+        pass: "lqwq sblp jlbk ofbb",           // 👉 app-specific password, not your login password
+    }
+});
 
 
 
@@ -107,25 +148,42 @@ app.get('/api/chatHistory', (req, res) => {
 
 //admin group creation start
 app.post('/admin/create-group', (req, res) => {
-    const { groupName } = req.body;
+    const { groupName, userIds } = req.body;
+
+    if (!groupName) {
+        return res.status(400).json({ message: "Group name is required" });
+    }
+
+    if (!Array.isArray(userIds) || userIds.length < 2) {
+        return res.status(400).json({ message: "At least 2 members are required to create a group" });
+    }
+
     db.query('INSERT INTO groups1 (name) VALUES (?)', [groupName], (err, result) => {
         if (err) return res.status(500).json({ message: "Error creating group" });
 
         const groupId = result.insertId;
         const tableName = `group_${groupId}_messages`;
 
-        // Create a new table for the group
-        db.query(`
-            CREATE TABLE ${tableName} (
-                message_id INT AUTO_INCREMENT PRIMARY KEY,
-                user_id INT,
-                message TEXT,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-        `, (err) => {
-            if (err) return res.status(500).json({ message: "Error creating group chat table" });
-            res.json({ message: "Group created successfully", groupId });
+        // Insert group members
+        const memberValues = userIds.map(userId => [userId, groupId]);
+        db.query('INSERT INTO group_members (user_id, group_id) VALUES ?', [memberValues], (err) => {
+            if (err) {
+                return res.status(500).json({ message: "Error adding members to group" });
+            }
+
+            // Create a new table for the group chat messages
+            db.query(`
+                CREATE TABLE ${tableName} (
+                    message_id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id INT,
+                    message TEXT,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id)
+                )
+            `, (err) => {
+                if (err) return res.status(500).json({ message: "Error creating group chat table" });
+                res.json({ message: "Group created successfully", groupId });
+            });
         });
     });
 });
@@ -288,6 +346,10 @@ app.get('/admin/groups', (req, res) => {
       res.json(results);
     });
   });
+
+  
+  
+  
 
   //message send
 
@@ -509,6 +571,7 @@ app.post('/user/login', (req, res) => {
             success: true,
             token,
             role: user.role,
+            userId: user.id,
             redirect: `/${user.role}-dashboard.html`
         });
     });
@@ -518,15 +581,62 @@ app.post('/user/login', (req, res) => {
 
 
 
-// ✅ READ All Users
+
+
+// ✅ READ All Users with filtering support
+
 app.get('/users', (req, res) => {
-    db.query('SELECT * FROM users', (err, results) => {
-        if (err) return res.status(500).json({ message: "Error fetching users" });
+    const { role, stream, percentageMin, percentageMax } = req.query;
+
+    let query = `
+        SELECT u.id, u.name, u.email, u.role, sat.stream, sat.percentage
+        FROM users u
+        LEFT JOIN student_academic_table sat ON u.id = sat.student_id
+        WHERE 1=1
+    `;
+
+    const params = [];
+
+    if (role) {
+        query += ' AND u.role = ?';
+        params.push(role);
+    }
+
+    if (stream) {
+        query += ' AND sat.stream = ?';
+        params.push(stream);
+    }
+
+    if (percentageMin) {
+        query += ' AND CAST(sat.percentage AS DECIMAL(5,2)) >= ?';
+        params.push(percentageMin);
+    }
+
+    if (percentageMax) {
+        query += ' AND CAST(sat.percentage AS DECIMAL(5,2)) <= ?';
+        params.push(percentageMax);
+    }
+
+    db.query(query, params, (err, results) => {
+        if (err) {
+            console.error("Error fetching users with filters:", err);
+            return res.status(500).json({ message: "Error fetching users" });
+        }
         res.json(results);
     });
 });
 
-// ✅ UPDATE User
+// GET user by id
+app.get('/users/:id', (req, res) => {
+    const { id } = req.params;
+    db.query('SELECT id, name, email, role FROM users WHERE id = ?', [id], (err, results) => {
+        if (err) return res.status(500).json({ message: "Error fetching user" });
+        if (results.length === 0) return res.status(404).json({ message: "User not found" });
+        res.json(results[0]);
+    });
+});
+
+// ✅ CREATE User
 app.post('/users', (req, res) => {
     const { name, email, role, password } = req.body;
     db.query('INSERT INTO users (name, email, role, password) VALUES (?, ?, ?, ?)', [name, email, role, password], (err, result) => {
@@ -535,13 +645,28 @@ app.post('/users', (req, res) => {
     });
 });
 
+// UPDATE User - only name and password, exclude email and role
 app.put('/users/:id', (req, res) => {
     const { id } = req.params;
-    const { name, email, role, password } = req.body;
-    db.query('UPDATE users SET name = ?, email = ?, role = ?, password = ? WHERE id = ?', [name, email, role, password, id], (err) => {
-        if (err) return res.status(500).json({ message: "Error updating user" });
-        res.json({ message: "User updated", id });
-    });
+    const { name, password } = req.body;
+
+    if (!name) {
+        return res.status(400).json({ message: "Name is required" });
+    }
+
+    if (password && password.trim() !== '') {
+        // Update name and password
+        db.query('UPDATE users SET name = ?, password = ? WHERE id = ?', [name, password, id], (err) => {
+            if (err) return res.status(500).json({ message: "Error updating user" });
+            res.json({ message: "User updated", id });
+        });
+    } else {
+        // Update only name
+        db.query('UPDATE users SET name = ? WHERE id = ?', [name, id], (err) => {
+            if (err) return res.status(500).json({ message: "Error updating user" });
+            res.json({ message: "User updated", id });
+        });
+    }
 });
 
 
@@ -555,7 +680,365 @@ app.delete('/users/:id', (req, res) => {
 });
 
 
+// new functionality adding if it does not works we will delete this 
+
+
+app.use(cors());
+app.use(express.json()); // Parse JSON request body
+
+// API to insert student into pending_students table
+// app.post('/api/submit-student', (req, res) => {
+//     const { name, email, password } = req.body;
+
+//     if (!name || !email || !password) {
+//         return res.status(400).json({ error: 'All fields are required' });
+//     }
+
+//     db.query(
+//         'INSERT INTO pending_students (name, email, password) VALUES (?, ?, ?)',
+//         [name, email, password],
+//         (err) => {
+//             if (err) {
+//                 console.error('Error inserting data:', err);
+//                 return res.status(500).json({ error: 'Database insertion failed' });
+//             }
+//             res.status(200).json({ message: 'Student registered successfully' });
+//         }
+//     );
+// });
+
+
+// Use the pending-students route
+// const pendingStudentRoutes = require("./routes/pendingstudent");
+app.use(pendingStudentRoutes);
+
+
+//Route to Accept a Student (Move to users Table)
+// app.post('/accept-student/:id', async (req, res) => {
+//     const studentId = req.params.id;
+//     try {
+//         // Step 1: Get student data from pending_students
+//         const [rows] = await db.promise().query("SELECT * FROM pending_students WHERE id = ?", [studentId]);
+//         if (rows.length === 0) {
+//             return res.status(404).json({ message: "Student not found" });
+//         }
+
+//         const student = rows[0];
+
+//         // Step 2: Insert into users table
+//         await db.promise().query(
+//             "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)",
+//             [student.name, student.email, student.password, 'student']
+//         );
+
+//         // Step 3: Delete from pending_students
+//         await db.promise().query("DELETE FROM pending_students WHERE id = ?", [studentId]);
+
+//         res.json({ message: "Student accepted successfully" });
+//     } catch (err) {
+//         console.error("Error accepting student:", err);
+//         res.status(500).json({ message: "Internal server error" });
+//     }
+// });
+
+//Route to Reject a Student (Delete from pending_students)
+// app.delete('/reject-student/:id', async (req, res) => {
+//     const studentId = req.params.id;
+//     try {
+//         await db.promise().query("DELETE FROM pending_students WHERE id = ?", [studentId]);
+//         res.json({ message: "Student rejected and deleted successfully" });
+//     } catch (err) {
+//         console.error("Error rejecting student:", err);
+//         res.status(500).json({ message: "Internal server error" });
+//     }
+// });
+// code for pending student approval and rejection with nodemailer start
+
+// API to insert student into pending_students table
+
+app.post('/api/submit-student', async (req, res) => {
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+        return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    try {
+        // Use existing db connection instead of creating new one
+        await db.promise().execute(
+            'INSERT INTO pending_students (name, email, password) VALUES (?, ?, ?)',
+            [name, email, password]
+        );
+
+        // Send Pending Registration Email
+        const mailOptions = {
+            from: '"CampusLink Admin" <your-email@gmail.com>',
+            to: email,
+            subject: "CampusLink Registration Received",
+            html: `
+          <p>Hi ${name},</p>
+          <p>Your registration request has been received and is currently <strong>pending approval</strong>.</p>
+          <p>You’ll receive another email once it is reviewed by our team.</p>
+          <br>
+          <p>Thanks,<br/>CampusLink Team</p>
+        `
+        };
+
+        transporter.sendMail(mailOptions, (err, info) => {
+            if (err) {
+                console.error('Failed to send pending email:', err);
+                // You may choose to respond with success even if email fails
+            } else {
+                console.log('Pending email sent:', info.response);
+            }
+        });
+
+        res.status(200).json({ message: 'Student registered successfully' });
+    } catch (error) {
+        console.error('Error inserting data:', error);
+        res.status(500).json({ error: 'Database insertion failed' });
+    }
+});
+
+
+
+
+// Use the pending-students route
+// const pendingStudentRoutes = require("./routes/pendingstudent");
+app.use(pendingStudentRoutes);
+
+
+
+//Route to Accept a Student (Move to users Table)
+app.post('/accept-student/:id', async (req, res) => {
+    const studentId = req.params.id;
+    try {
+        console.log("Fetching student by ID:", studentId);
+        const [rows] = await db.promise().query("SELECT * FROM pending_students WHERE id = ?", [studentId]);
+
+        if (rows.length === 0) {
+            return res.status(404).json({ message: "Student not found" });
+        }
+
+        const student = rows[0];
+        console.log("Student found:", student);
+
+        console.log("Inserting into users table...");
+        await db.promise().query(
+            "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)",
+            [student.name, student.email, student.password, 'student']
+        );
+
+        console.log("Deleting from pending_students...");
+        await db.promise().query("DELETE FROM pending_students WHERE id = ?", [studentId]);
+
+        console.log("Preparing to send email...");
+
+        const mailOptions = {
+            from: '"CampusLink Admin" <your-email@gmail.com>',
+            to: student.email,
+            subject: "CampusLink - Registration Accepted 🎉",
+            html: `
+                <p>Hi ${student.name},</p>
+                <p>Your registration has been <strong>approved</strong>!</p>
+                <p>You can now log in using the credentials below:</p>
+                <ul>
+                    <li><strong>Email:</strong> ${student.email}</li>
+                    <li><strong>Password:</strong> ${student.password}</li>
+                </ul>
+                <p>Welcome aboard!</p>
+                <br>
+                <p>Regards,<br/>CampusLink Team</p>
+            `
+        };
+
+        transporter.sendMail(mailOptions, (error, info) => {
+            if (error) {
+                console.error("Error sending email:", error);
+            } else {
+                console.log("Email sent:", info.response);
+            }
+        });
+
+        res.json({ message: "Student accepted and email sent successfully" });
+
+    } catch (err) {
+        console.error("🔥 Error in accept-student route:", err);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+
+
+
+
+//Route to Reject a Student (Delete from pending_students)
+
+app.delete('/reject-student/:id', async (req, res) => {
+    const studentId = req.params.id;
+
+    try {
+        // Fetch the student's email and name before deletion
+        const [rows] = await db.promise().query(
+            "SELECT name, email FROM pending_students WHERE id = ?",
+            [studentId]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ message: "Student not found" });
+        }
+
+        const { name, email } = rows[0];
+
+        // Delete the student
+        await db.promise().query("DELETE FROM pending_students WHERE id = ?", [studentId]);
+
+        // Send rejection email
+        const mailOptions = {
+            from: '"CampusLink Admin" <your-email@gmail.com>',
+            to: email,
+            subject: "CampusLink Registration Rejected",
+            html: `
+        <p>Hi ${name},</p>
+        <p>We regret to inform you that your registration request has been <strong>rejected</strong> by the admin.</p>
+        <p>If you believe this was a mistake or would like to try again, please contact support or reapply.</p>
+        <br>
+        <p>Regards,<br/>CampusLink Team</p>
+      `
+        };
+
+        transporter.sendMail(mailOptions, (err, info) => {
+            if (err) {
+                console.error("Failed to send rejection email:", err);
+            } else {
+                console.log("Rejection email sent:", info.response);
+            }
+        });
+
+        res.json({ message: "Student rejected and deleted successfully" });
+    } catch (err) {
+        console.error("Error rejecting student:", err);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+
+
+
+
+//nodemailer setup
+
+
+
+// code for pending student approval and rejection with nodemailer end
+
+
+
 //////////////////////////////
+
+// function authenticateToken(req, res, next) {
+//     const authHeader = req.headers['authorization'];
+//     const token = authHeader && authHeader.split(' ')[1];
+//     if (!token) return res.status(401).json({ message: 'Unauthorized: No token provided' });
+
+//     jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+//         if (err) return res.status(403).json({ message: 'Forbidden: Invalid token' });
+//         req.user = user;
+//         next();
+//     });
+
+ // Create student_academic_table if not exists
+db.query(`
+    CREATE TABLE IF NOT EXISTS student_academic_table (
+        roll_number VARCHAR(255) PRIMARY KEY,
+        student_id INT NOT NULL,
+        stream VARCHAR(255),
+        percentage VARCHAR(255),
+        FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+`, (err) => {
+    if (err) {
+        console.error("❌ Error creating student_academic_table:", err);
+    } else {
+        console.log("✅ student_academic_table ensured");
+    }
+});
+
+// Get all student academic details with student info
+app.get('/student-academic-table', authenticateToken, (req, res) => {
+    const query = `
+        SELECT sat.roll_number, sat.student_id, sat.stream, sat.percentage, u.name, u.email
+        FROM student_academic_table sat
+        JOIN users u ON sat.student_id = u.id
+        WHERE u.role = 'student'
+    `;
+    db.query(query, (err, results) => {
+        if (err) return res.status(500).json({ message: "Error fetching student academic details" });
+        res.json(results);
+    });
+});
+
+// Get academic details by student_id
+app.get('/student-academic-table/:student_id', authenticateToken, (req, res) => {
+    const { student_id } = req.params;
+    const query = `
+        SELECT roll_number, student_id, stream, percentage
+        FROM student_academic_table
+        WHERE student_id = ?
+    `;
+    db.query(query, [student_id], (err, results) => {
+        if (err) return res.status(500).json({ message: "Error fetching academic details" });
+        if (results.length === 0) return res.status(404).json({ message: "Academic details not found" });
+        res.json(results[0]);
+    });
+});
+
+app.post('/student-academic-table', authenticateToken, (req, res) => {
+    const { originalRollNumber, roll_number, student_id, stream, percentage } = req.body;
+    if (!roll_number || !student_id) {
+        return res.status(400).json({ message: "roll_number and student_id are required" });
+    }
+
+    if (originalRollNumber && originalRollNumber !== roll_number) {
+        // If roll_number changed, delete old record and insert new
+        db.query('DELETE FROM student_academic_table WHERE roll_number = ?', [originalRollNumber], (err) => {
+            if (err) return res.status(500).json({ message: "Error updating academic details" });
+
+            const insertQuery = `
+                INSERT INTO student_academic_table (roll_number, student_id, stream, percentage)
+                VALUES (?, ?, ?, ?)
+            `;
+            db.query(insertQuery, [roll_number, student_id, stream, percentage], (err) => {
+                if (err) return res.status(500).json({ message: "Error saving academic details" });
+                res.json({ message: "Academic details updated" });
+            });
+        });
+    } else {
+        // Upsert logic: insert or update if exists
+        const query = `
+            INSERT INTO student_academic_table (roll_number, student_id, stream, percentage)
+            VALUES (?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                student_id = VALUES(student_id),
+                stream = VALUES(stream),
+                percentage = VALUES(percentage)
+        `;
+        db.query(query, [roll_number, student_id, stream, percentage], (err) => {
+            if (err) return res.status(500).json({ message: "Error saving academic details" });
+            res.json({ message: "Academic details saved" });
+        });
+    }
+});
+
+// Delete academic details by roll_number
+app.delete('/student-academic-table/:roll_number', authenticateToken, (req, res) => {
+    const { roll_number } = req.params;
+    db.query('DELETE FROM student_academic_table WHERE roll_number = ?', [roll_number], (err) => {
+        if (err) return res.status(500).json({ message: "Error deleting academic details" });
+        res.json({ message: "Academic details deleted" });
+    });
+});
+
 
 // ✅ Server Listen
 app.listen(5000, () => {

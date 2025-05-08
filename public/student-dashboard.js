@@ -7,9 +7,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const messageInput = document.getElementById('message-input');
     const sendMessageButton = document.getElementById('send-message-btn');
 
-    const studentId = 27; // This should be dynamically set based on logged-in user
+    const studentId = 27; // 🔄 Replace with dynamic value from session or backend
+    let currentGroupId = null;
+    let currentGroupName = '';
 
-    // Fetch groups the student is part of
+    // 🔄 Fetch the groups the student is part of
     fetch(`/student/groups/${studentId}`)
         .then(response => response.json())
         .then(groups => {
@@ -28,12 +30,13 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .catch(err => console.error('Error fetching groups:', err));
 
-    // Load the chat for the selected group
+    // ✅ Load chat for selected group
     function loadChat(groupId, groupName) {
+        currentGroupId = groupId;
+        currentGroupName = groupName;
         chatTitle.textContent = `Chat for ${groupName}`;
-        chatBox.innerHTML = ''; // Clear previous messages
+        chatBox.innerHTML = ''; // Clear old messages
 
-        // Fetch messages for this group
         fetch(`/group/${groupId}/messages`)
             .then(response => response.json())
             .then(messages => {
@@ -52,37 +55,44 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(err => console.error('Error fetching messages:', err));
     }
 
-    // Send a new message
+    // ✅ Send a new message
     sendMessageButton.addEventListener('click', () => {
-        const groupId = 1; // Replace with actual groupId based on selected group
         const message = messageInput.value.trim();
 
+        if (!currentGroupId) {
+            alert('Please select a group before sending a message.');
+            return;
+        }
+
         if (message !== '') {
-            fetch(`/group/${groupId}/message`, {
+            fetch(`/group/${currentGroupId}/message`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ userId: studentId, message: message })
+                body: JSON.stringify({
+                    userId: studentId,
+                    message: message
+                })
             })
             .then(response => response.json())
             .then(data => {
                 console.log('Message sent:', data);
-                loadChat(groupId, chatTitle.textContent.split(' ')[2]); // Reload chat with latest messages
+                messageInput.value = '';
+                loadChat(currentGroupId, currentGroupName); // Refresh chat
             })
             .catch(err => console.error('Error sending message:', err));
         }
     });
 
-    // Logout functionality
+    // ✅ Logout functionality
     logoutButton.addEventListener('click', () => {
-        // Implement logout logic here (e.g., clear session, cookies)
+        // Example: Clear session/cookie here if needed
         window.location.href = '/login'; // Redirect to login page
     });
 
-    // Profile functionality
+    // ✅ Profile navigation
     profileButton.addEventListener('click', () => {
-        // Implement profile view logic here (e.g., navigate to profile page)
         window.location.href = '/profile'; // Redirect to profile page
     });
 });

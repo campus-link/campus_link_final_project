@@ -6,6 +6,27 @@ document.addEventListener("DOMContentLoaded", () => {
     fetchUsers();
 
     document.getElementById("userForm").addEventListener("submit", handleFormSubmit);
+
+    // Listen for page visibility change to re-verify token
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            const currentToken = localStorage.getItem("adminToken");
+            if (!currentToken) {
+                showAccessDenied();
+                return;
+            }
+            verifyAdmin(currentToken);
+        }
+    });
+
+    // Listen for pageshow event to detect back/forward navigation and logout
+    window.addEventListener('pageshow', (event) => {
+        if (event.persisted) {
+            // Clear token and redirect to login
+            localStorage.removeItem("adminToken");
+            window.location.href = "admin.html";
+        }
+    });
 });
 
 // ✅ Admin Verification
@@ -151,9 +172,127 @@ async function deleteUser(id) {
 }
 
 // ✅ Filter by Role
-function filterUsers(role) {
-    console.log("Filter triggered for:", role);
-    fetchUsers(role);
+ // Student Academic Details
+
+let academicRecords = [];
+
+document.addEventListener("DOMContentLoaded", () => {
+    fetchAcademicRecords();
+});
+
+async function fetchAcademicRecords() {
+    try {
+        const token = localStorage.getItem("adminToken");
+        const res = await fetch("http://localhost:5000/student-academic-table", {
+            headers: {
+                "Authorization": `Bearer ${token}`
+            }
+        });
+        if (!res.ok) throw new Error("Failed to fetch academic records");
+        academicRecords = await res.json();
+        console.log("Fetched academic records:", academicRecords);
+        renderAcademicTable();
+    } catch (err) {
+        console.error("❌ Error fetching academic records:", err.message);
+    }
+}
+
+function renderAcademicTable() {
+    const tbody = document.getElementById("academicTableBody");
+    tbody.innerHTML = "";
+    console.log("Rendering academic records:", academicRecords);
+
+    academicRecords.forEach(record => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>${record.roll_number}</td>
+            <td>${record.student_id}</td>
+            <td>${record.stream || ""}</td>
+            <td>${record.percentage || ""}</td>
+            <td>
+                <button class="btn btn-sm btn-warning" onclick='editAcademicRecord(${JSON.stringify(record)})'>✏️ Edit</button>
+                <button class="btn btn-sm btn-danger ms-1" onclick='deleteAcademicRecord("${record.roll_number}")'>🗑️ Delete</button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function showAddAcademicForm() {
+    document.getElementById("academicFormContainer").style.display = "block";
+    document.getElementById("academicForm").reset();
+    document.getElementById("academicRollNumber").value = "";
+}
+
+function hideAcademicForm() {
+    document.getElementById("academicFormContainer").style.display = "none";
+}
+
+function editAcademicRecord(record) {
+    showAddAcademicForm();
+    document.getElementById("academicRollNumber").value = record.roll_number;
+    document.getElementById("academicRoll").value = record.roll_number;
+    document.getElementById("academicStudentId").value = record.student_id;
+    document.getElementById("academicStream").value = record.stream || "";
+    document.getElementById("academicPercentage").value = record.percentage || "";
+}
+
+document.getElementById("academicForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const roll_number = document.getElementById("academicRoll").value.trim();
+    const student_id = parseInt(document.getElementById("academicStudentId").value);
+    const stream = document.getElementById("academicStream").value.trim();
+    const percentage = document.getElementById("academicPercentage").value.trim();
+
+    if (!roll_number || !student_id) {
+        alert("Roll Number and Student ID are required.");
+        return;
+    }
+
+    try {
+        const token = localStorage.getItem("adminToken");
+        const originalRollNumber = document.getElementById("academicRollNumber").value.trim();
+        const res = await fetch("http://localhost:5000/student-academic-table", {
+            method: "POST",
+            headers: { 
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+            },
+            body: JSON.stringify({ originalRollNumber, roll_number, student_id, stream, percentage }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message);
+
+        alert("Academic record saved successfully.");
+        hideAcademicForm();
+        fetchAcademicRecords();
+    } catch (err) {
+        alert("Failed to save academic record: " + err.message);
+    }
+});
+
+async function deleteAcademicRecord(roll_number) {
+    if (!confirm("Are you sure you want to delete this academic record?")) return;
+
+    try {
+        const token = localStorage.getItem("adminToken");
+        const res = await fetch(`http://localhost:5000/student-academic-table/${roll_number}`, {
+            method: "DELETE",
+            headers: {
+                "Authorization": `Bearer ${token}`
+            }
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message);
+
+        alert("Academic record deleted successfully.");
+        fetchAcademicRecords();
+    } catch (err) {
+        alert("Failed to delete academic record: " + err.message);
+    }
 }
 
 

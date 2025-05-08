@@ -3,42 +3,121 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student Dashboard</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Group Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
     <div class="container">
-        <header>
-            <div class="header-content">
-                <div class="profile-logout">
-                    <button id="profile-btn">Profile</button>
-                    <button id="logout-btn">Logout</button>
-                </div>
-            </div>
-        </header>
+        <h1>Group Management</h1>
+        
+        <!-- Create Group Section -->
+        <h3>Create a New Group</h3>
+        <input type="text" id="newGroupName" class="form-control" placeholder="Group Name">
+        <button class="btn btn-primary mt-2" id="createGroupBtn">Create Group</button>
 
-        <div class="main-content">
-            <div class="sidebar">
-                <h3>Your Groups</h3>
-                <ul id="groups-list">
-                    <!-- Groups will be dynamically added here -->
-                </ul>
-                
-            </div>
+        <!-- Add User to Group Section -->
+        <h3>Add User to Group</h3>
+        <input type="number" id="groupIdToAddUser" class="form-control mt-2" placeholder="Group ID">
+        <input type="number" id="userIdToAdd" class="form-control mt-2" placeholder="User ID">
+        <button class="btn btn-success mt-2" id="addUserBtn">Add User to Group</button>
 
-            <div class="chat-container">
-                <h3 id="chat-title">Select a group to start chatting</h3>
-                <div id="chat-box">
-                    <!-- Chat content will be displayed here -->
-                </div>
-                <div class="message-box">
-                    <textarea id="message-input" placeholder="Type your message..."></textarea>
-                    <button id="send-message-btn">Send</button>
-                </div>
-            </div>
-        </div>
+        <!-- Remove User from Group Section -->
+        <h3>Remove User from Group</h3>
+        <input type="number" id="groupIdToRemoveUser" class="form-control mt-2" placeholder="Group ID">
+        <input type="number" id="userIdToRemove" class="form-control mt-2" placeholder="User ID">
+        <button class="btn btn-danger mt-2" id="removeUserBtn">Remove User from Group</button>
+
+        <!-- Send Message to Group Section -->
+        <h3>Send Message to Group</h3>
+        <input type="number" id="messageGroupId" class="form-control mt-2" placeholder="Group ID">
+        <input type="number" id="messageUserId" class="form-control mt-2" placeholder="Your User ID">
+        <textarea id="messageText" class="form-control mt-2" placeholder="Message"></textarea>
+        <button class="btn btn-info mt-2" id="sendMessageBtn">Send Message</button>
+
+        <!-- Display Messages Section -->
+        <h3>Messages in Group</h3>
+        <input type="number" id="messagesGroupId" class="form-control mt-2" placeholder="Group ID">
+        <button class="btn btn-secondary mt-2" id="getMessagesBtn">Get Messages</button>
+        <ul id="messageList" class="list-group mt-3"></ul>
     </div>
 
-    <script src="hr-dashboard.js"></script>
+    <script>
+        const baseUrl = 'http://localhost:5000'; // Your backend API URL
+
+        // Create Group
+        document.getElementById('createGroupBtn').addEventListener('click', () => {
+            const groupName = document.getElementById('newGroupName').value;
+
+            fetch(`${baseUrl}/group`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: groupName })
+            })
+            .then(response => response.json())
+            .then(data => alert('Group created: ' + data.name))
+            .catch(error => console.error('Error:', error));
+        });
+
+        // Add User to Group
+        document.getElementById('addUserBtn').addEventListener('click', () => {
+            const groupId = document.getElementById('groupIdToAddUser').value;
+            const userId = document.getElementById('userIdToAdd').value;
+
+            fetch(`${baseUrl}/group/${groupId}/user/${userId}`, {
+                method: 'POST',
+            })
+            .then(response => response.json())
+            .then(data => alert(data.message))
+            .catch(error => console.error('Error:', error));
+        });
+
+        // Remove User from Group
+        document.getElementById('removeUserBtn').addEventListener('click', () => {
+            const groupId = document.getElementById('groupIdToRemoveUser').value;
+            const userId = document.getElementById('userIdToRemove').value;
+
+            fetch(`${baseUrl}/group/${groupId}/user/${userId}`, {
+                method: 'DELETE',
+            })
+            .then(response => response.json())
+            .then(data => alert(data.message))
+            .catch(error => console.error('Error:', error));
+        });
+
+        // Send Message to Group
+        document.getElementById('sendMessageBtn').addEventListener('click', () => {
+            const groupId = document.getElementById('messageGroupId').value;
+            const userId = document.getElementById('messageUserId').value;
+            const message = document.getElementById('messageText').value;
+
+            fetch(`${baseUrl}/group/${groupId}/message`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: userId, message: message })
+            })
+            .then(response => response.json())
+            .then(data => alert('Message sent: ' + data.message))
+            .catch(error => console.error('Error:', error));
+        });
+
+        // Get Messages for Group
+        document.getElementById('getMessagesBtn').addEventListener('click', () => {
+            const groupId = document.getElementById('messagesGroupId').value;
+
+            fetch(`${baseUrl}/group/${groupId}/messages`)
+            .then(response => response.json())
+            .then(messages => {
+                const messageList = document.getElementById('messageList');
+                messageList.innerHTML = '';
+                messages.forEach(msg => {
+                    const li = document.createElement('li');
+                    li.classList.add('list-group-item');
+                    li.textContent = `${msg.user_id}: ${msg.message}`;
+                    messageList.appendChild(li);
+                });
+            })
+            .catch(error => console.error('Error:', error));
+        });
+    </script>
 </body>
 </html>

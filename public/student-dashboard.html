@@ -1,44 +1,286 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student Dashboard</title>
-    <link rel="stylesheet" href="styles.css">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>User Dashboard - Groups & Messages</title>
+    <style>
+        /* General reset */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+        body {
+            background: #ecf0f3;
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        #groups {
+            margin-bottom: 20px;
+            border-radius: 12px;
+            background: #fff;
+            box-shadow: 8px 8px 15px #cbced1, -8px -8px 15px #fff;
+            padding: 15px;
+        }
+        .group-item {
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            box-shadow: inset 6px 6px 8px #cbced1, inset -6px -6px 8px #fff;
+            transition: background-color 0.3s ease;
+            border: 2px solid transparent;
+        }
+        .group-item:hover, .group-item.selected {
+            background-color: #03a9f4;
+            color: white;
+            border-color: #0277bd;
+        }
+        #messages-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 8px 8px 15px #cbced1, -8px -8px 15px #fff;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+        }
+        .message {
+            background: #03a9f4;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            max-width: 75%;
+            word-wrap: break-word;
+        }
+        .message.user {
+            align-self: flex-end;
+            background: #039be5;
+        }
+        #send-message {
+            display: flex;
+            gap: 10px;
+        }
+        #messageInput {
+            flex-grow: 1;
+            padding: 12px 15px;
+            border-radius: 25px;
+            border: 2px solid #03a9f4;
+            font-size: 1rem;
+            outline: none;
+        }
+        #sendMessageButton {
+            padding: 12px 20px;
+            border: none;
+            background-color: #03a9f4;
+            color: white;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1rem;
+            transition: background-color 0.3s ease;
+        }
+        #sendMessageButton:disabled {
+            background-color: #90caf9;
+            cursor: not-allowed;
+        }
+        #sendMessageButton:hover:not(:disabled) {
+            background-color: #0277bd;
+        }
+        
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+                max-width: 100%;
+            }
+            #messages-container {
+                max-height: 200px;
+            }
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <div class="header-content">
-                <div class="profile-logout">
-                    <button id="profile-btn">Profile</button>
-                    <button id="logout-btn">Logout</button>
-                </div>
-            </div>
-        </header>
 
-        <div class="main-content">
-            <div class="sidebar">
-                <h3>Your Groups</h3>
-                <ul id="groups-list">
-                    <!-- Groups will be dynamically added here -->
-                </ul>
-                
-            </div>
+    <h1>User Dashboard</h1>
 
-            <div class="chat-container">
-                <h3 id="chat-title">Select a group to start chatting</h3>
-                <div id="chat-box">
-                    <!-- Chat content will be displayed here -->
-                </div>
-                <div class="message-box">
-                    <textarea id="message-input" placeholder="Type your message..."></textarea>
-                    <button id="send-message-btn">Send</button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <section>
+        <h2>Your Groups</h2>
+        <div id="groups">Loading groups...</div>
+    </section>
 
-    <script src="student-dashboard.js"></script>
+    <section>
+        <h2>Messages</h2>
+        <div id="messages-container">Select a group to see messages.</div>
+    </section>
+
+    <section id="send-message-section" style="display:none;">
+        <input type="text" id="messageInput" placeholder="Type your message here..." autocomplete="off" />
+        <button id="sendMessageButton" disabled>Send</button>
+    </section>
+
+<script>
+(async function() {
+    const userId = localStorage.getItem('userId');
+    const token = localStorage.getItem('authToken');
+
+    if (!userId || !token) {
+        alert("You are not logged in. Redirecting to login page.");
+        window.location.href = 'multi-login.html';
+        return;
+    }
+
+    const groupsContainer = document.getElementById('groups');
+    const messagesContainer = document.getElementById('messages-container');
+    const sendMessageSection = document.getElementById('send-message-section');
+    const messageInput = document.getElementById('messageInput');
+    const sendMessageButton = document.getElementById('sendMessageButton');
+
+    let groups = [];
+    let selectedGroupId = null;
+
+    // Fetch groups user belongs to
+    async function fetchUserGroups() {
+        try {
+            const res = await fetch(`http://localhost:5000/user/${userId}/groups`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Failed to fetch groups');
+            groups = await res.json();
+            renderGroups();
+        } catch (e) {
+            groupsContainer.innerText = 'Failed to load groups. Please try again later.';
+            console.error(e);
+        }
+    }
+
+    // Render groups list
+    function renderGroups() {
+        if (groups.length === 0) {
+            groupsContainer.innerText = "You are not a member of any groups.";
+            return;
+        }
+
+        groupsContainer.innerHTML = '';
+        groups.forEach(g => {
+            const div = document.createElement('div');
+            div.className = 'group-item';
+            div.innerText = g.name;
+            div.dataset.groupId = g.id;
+            div.onclick = () => selectGroup(g.id);
+            if (selectedGroupId === g.id) div.classList.add('selected');
+            groupsContainer.appendChild(div);
+        });
+    }
+
+    // Select group and fetch messages
+    async function selectGroup(groupId) {
+        selectedGroupId = groupId;
+        renderGroups();
+        await fetchGroupMessages(groupId);
+        sendMessageSection.style.display = 'flex';
+        messageInput.value = '';
+        sendMessageButton.disabled = true;
+        messageInput.focus();
+    }
+
+    // Fetch messages for selected group
+    async function fetchGroupMessages(groupId) {
+        try {
+            messagesContainer.innerHTML = 'Loading messages...';
+            const res = await fetch(`http://localhost:5000/group/${groupId}/messages`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Failed to fetch messages');
+            const messages = await res.json();
+            renderMessages(messages);
+        } catch (e) {
+            messagesContainer.innerText = 'Failed to load messages.';
+            console.error(e);
+        }
+    }
+
+    // Render messages
+    function renderMessages(messages) {
+        messagesContainer.innerHTML = '';
+        if (messages.length === 0) {
+            messagesContainer.innerText = "No messages in this group yet.";
+            return;
+        }
+        messages.forEach(msg => {
+            const div = document.createElement('div');
+            div.className = 'message';
+            if (msg.user_id == userId) {
+                div.classList.add('user');
+            }
+            div.textContent = msg.message;
+            messagesContainer.appendChild(div);
+        });
+        // Scroll to bottom
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    // Enable/disable send button based on input
+    messageInput.addEventListener('input', () => {
+        sendMessageButton.disabled = messageInput.value.trim().length === 0;
+    });
+
+    // Send message to server
+    sendMessageButton.addEventListener('click', async () => {
+        if (!selectedGroupId) {
+            alert('Please select a group first.');
+            return;
+        }
+
+        const messageText = messageInput.value.trim();
+        if (!messageText) return;
+
+        try {
+            sendMessageButton.disabled = true;
+            const res = await fetch(`http://localhost:5000/group/${selectedGroupId}/message`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ user_id: Number(userId), message: messageText })
+            });
+            if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(errData.error || 'Failed to send message');
+            }
+            messageInput.value = '';
+            await fetchGroupMessages(selectedGroupId);
+        } catch (e) {
+            alert(e.message);
+            console.error(e);
+        } finally {
+            sendMessageButton.disabled = false;
+            messageInput.focus();
+        }
+    });
+
+    // Initial load
+    await fetchUserGroups();
+
+})();
+</script>
+
 </body>
 </html>
+</content>
+</create_file>
