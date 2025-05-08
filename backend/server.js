@@ -42,11 +42,34 @@ console.log("DB_HOST:", process.env.DB_HOST);
 console.log("DB_USER:", process.env.DB_USER);
 console.log("DB_NAME:", process.env.DB_NAME);
 
+const url = require('url');
+
+function parseDatabaseUrl(databaseUrl) {
+    if (!databaseUrl) return {};
+
+    const params = url.parse(databaseUrl);
+    const [user, password] = params.auth ? params.auth.split(':') : [null, null];
+    const host = params.hostname;
+    const port = params.port;
+    const database = params.pathname ? params.pathname.split('/')[1] : null;
+
+    return {
+        host,
+        port,
+        user,
+        password,
+        database
+    };
+}
+
+const dbConfig = parseDatabaseUrl(process.env.DATABASE_URL || process.env.MYSQL_URL);
+
 const db = mysql.createConnection({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASS,
-    database: process.env.DB_NAME
+    host: dbConfig.host,
+    port: dbConfig.port,
+    user: dbConfig.user,
+    password: dbConfig.password,
+    database: dbConfig.database
 });
 
 db.connect(err => {
